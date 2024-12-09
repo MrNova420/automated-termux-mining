@@ -1,95 +1,119 @@
 #!/bin/bash
 
-# Colors for better visuals
-GREEN="\033[0;32m"
-RED="\033[0;31m"
-RESET="\033[0m"
-
-# Log file for errors
-LOG_FILE="error_log.txt"
-
-function log_error {
-    echo -e "${RED}[Error] $1${RESET}" | tee -a $LOG_FILE
+# Function to install necessary packages
+install_dependencies() {
+    echo "Installing necessary dependencies..."
+    apt update -y && apt upgrade -y
+    apt install -y git wget curl python python3-pip clang make unzip
+    echo "Dependencies installed."
 }
 
-function log_info {
-    echo -e "${GREEN}[Info] $1${RESET}"
-}
-
-# Function to install miners
-function install_miner {
-    local miner_name=$1
-    local repo_url=$2
-    local backup_urls=("${@:3}")
-
-    log_info "Installing $miner_name..."
-    log_info "Trying to clone from $repo_url"
-
-    # Prompt for GitHub PAT
-    read -p "Enter your GitHub PAT (or press Enter to skip): " pat
-    if [[ -n $pat ]]; then
-        git clone https://$pat@$repo_url || log_error "$miner_name GitHub clone failed."
+# Function to configure SSH key (ensure it's already set up)
+setup_ssh_key() {
+    echo "Checking for SSH key setup..."
+    if [ ! -f "$HOME/.ssh/id_rsa" ]; then
+        echo "SSH key not found, creating a new one..."
+        ssh-keygen -t rsa -b 4096 -f "$HOME/.ssh/id_rsa" -N ""
+        echo "Adding SSH key to GitHub..."
+        # Print the key for manual addition (you can replace this with API interaction later)
+        cat "$HOME/.ssh/id_rsa.pub"
     else
-        git clone https://$repo_url || log_error "$miner_name GitHub clone failed."
+        echo "SSH key found."
     fi
-
-    # If cloning fails, try backups
-    if [[ ! -d "$miner_name" ]]; then
-        for url in "${backup_urls[@]}"; do
-            log_info "Trying $url..."
-            wget "$url" -O "$miner_name.zip" || log_error "Failed to download $url"
-            if [[ -f "$miner_name.zip" ]]; then
-                unzip "$miner_name.zip" -d "$miner_name"
-                [[ -d "$miner_name" ]] && break
-            fi
-        done
-    fi
-
-    if [[ ! -d "$miner_name" ]]; then
-        log_error "All download methods failed for $miner_name."
-        return 1
-    fi
-
-    log_info "$miner_name installation complete."
-    return 0
 }
 
-# Main menu
-function main_menu {
-    while true; do
-        echo "========= Verus Mining Script ========="
-        echo "1. Setup Environment"
-        echo "2. Install Miners"
-        echo "3. Start Mining"
-        echo "4. Exit"
-        echo "======================================="
-        read -p "Select an option: " option
+# Function to clone and setup Verus miner from GitHub
+clone_miner_repo() {
+    echo "Cloning miner repositories..."
+    MINER_REPOS=("https://github.com/oink70/VerusMiner.git" "https://github.com/username/alternative-repo.git")
 
+    for repo in "${MINER_REPOS[@]}"; do
+        git clone "$repo" || {
+            echo "Failed to clone repository $repo, trying next mirror..."
+            continue
+        }
+        echo "Cloned repository from $repo"
+        break
+    done
+}
+
+# Function to install required miners (and handle errors)
+install_miners() {
+    echo "Installing miners..."
+    MINERS=("oink70" "verus-cli" "xmrig")
+
+    for miner in "${MINERS[@]}"; do
+        echo "Attempting to install $miner..."
+        if ! git clone "https://github.com/oink70/VerusMiner.git"; then
+            echo "Failed to clone $miner from GitHub, trying backup mirrors..."
+            wget -O miner.zip https://mirror1.example.com/VerusMiner.zip || wget -O miner.zip https://mirror2.example.com/VerusMiner.zip
+            unzip miner.zip
+        fi
+    done
+}
+
+# Function to configure miner and replace settings as needed
+configure_miner() {
+    echo "Configuring miner..."
+    # Placeholder for miner configuration steps (e.g., modifying config files)
+    echo "Miner configured."
+}
+
+# Function to start mining
+start_mining() {
+    echo "Starting the mining process..."
+    # Start mining (customize based on miner)
+    # e.g., ./verusminer or ./xmrig
+    ./miner/your_miner_executable &
+    echo "Mining started."
+}
+
+# Main setup function
+main() {
+    echo "========= Verus Mining Script ========="
+    echo "1. Setup Environment"
+    echo "2. Install/Update Miners"
+    echo "3. Configure Miner"
+    echo "4. Start Mining"
+    echo "5. Enable Watchdog"
+    echo "6. View Logs"
+    echo "7. Check for Updates"
+    echo "8. Exit"
+    echo "======================================="
+
+    select option in "Setup Environment" "Install/Update Miners" "Configure Miner" "Start Mining" "Enable Watchdog" "View Logs" "Check for Updates" "Exit"; do
         case $option in
-        1)
-            log_info "Setting up dependencies..."
-            apt update && apt upgrade -y
-            apt install git wget curl unzip -y
-            log_info "Environment setup complete."
-            ;;
-        2)
-            install_miner "oink70" "github.com/oink70/VerusMiner.git" \
-                "https://mirror1.example.com/oink70.zip" \
-                "https://mirror2.example.com/oink70.zip" \
-                "https://raw.githubusercontent.com/MrNova420/automated-termux-mining/main/prebuilt/oink70.zip"
-            ;;
-        3)
-            log_info "Starting mining (placeholder)..."
-            ;;
-        4)
-            log_info "Exiting script. Goodbye!"
-            break
-            ;;
-        *)
-            log_error "Invalid option. Please try again."
-            ;;
+            "Setup Environment")
+                install_dependencies
+                setup_ssh_key
+                ;;
+            "Install/Update Miners")
+                install_miners
+                ;;
+            "Configure Miner")
+                configure_miner
+                ;;
+            "Start Mining")
+                start_mining
+                ;;
+            "Enable Watchdog")
+                # Watchdog setup logic here
+                ;;
+            "View Logs")
+                # Log viewing logic here
+                ;;
+            "Check for Updates")
+                # Update check logic here
+                ;;
+            "Exit")
+                echo "Exiting script."
+                break
+                ;;
+            *)
+                echo "Invalid option, try again."
+                ;;
         esac
     done
 }
 
-main_menu
+main
